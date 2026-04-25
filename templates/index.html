@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dental Chart — Audio Assistant</title>
+<style>
+:root {
+  --blue: #2563eb;
+  --blue-light: #dbeafe;
+  --green: #16a34a;
+  --red: #dc2626;
+  --amber: #d97706;
+  --surface: #fff;
+  --bg: #f1f5f9;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+       background: var(--bg); color: var(--text); min-height: 100vh; }
+
+header {
+  background: var(--blue);
+  color: #fff;
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.18);
+}
+header svg { flex-shrink: 0; }
+header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -.5px; }
+header p  { font-size: .8rem; opacity: .8; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 18px;
+  padding: 18px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ─── Chart card ─── */
+.chart-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 18px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.chart-card h2 { font-size: .85rem; font-weight: 600; color: var(--muted);
+                 text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+#chart-svg { width: 100%; height: auto; display: block; }
+
+/* ─── Tooth styles ─── */
+.tooth-group { cursor: pointer; }
+.tooth-group .crown {
+  fill: #fff;
+  stroke: #94a3b8;
+  stroke-width: 1.5;
+  transition: fill .15s, stroke .15s;
+}
+.tooth-group:hover .crown  { stroke: var(--blue); fill: #eff6ff; }
+.tooth-group.selected .crown { fill: #bfdbfe; stroke: var(--blue); stroke-width: 2.2; }
+.tooth-group.cavity     .crown { fill: #fee2e2; stroke: #dc2626; }
+.tooth-group.filling    .crown { fill: #dbeafe; stroke: #2563eb; }
+.tooth-group.crown-cond .crown { fill: #fef9c3; stroke: #ca8a04; }
+.tooth-group.extraction .crown { fill: #f1f5f9; stroke: #475569; }
+.tooth-group.missing    .crown { fill: #e2e8f0; stroke: #94a3b8; stroke-dasharray: 4 2; }
+.tooth-group.root_canal .crown { fill: #fed7aa; stroke: #ea580c; }
+.tooth-group.implant    .crown { fill: #d1fae5; stroke: #059669; }
+.tooth-group.bridge     .crown { fill: #f3e8ff; stroke: #7c3aed; }
+.tooth-group.crack      .crown { fill: #fce7f3; stroke: #be185d; }
+.tooth-group.pain       .crown { fill: #ffe4e6; stroke: #e11d48; }
+.tooth-group.sensitivity .crown { fill: #fff7ed; stroke: #c2410c; }
+.tooth-group.healthy    .crown { fill: #f0fdf4; stroke: #16a34a; }
+.tooth-group.observation .crown { fill: #f0f9ff; stroke: #0284c7; }
+.root-shape { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1; }
+
+.tooth-label { font-size: 9.5px; fill: #475569; text-anchor: middle;
+               font-family: 'SF Mono', 'Fira Mono', monospace; font-weight: 600; }
+.arch-label  { font-size: 10px; fill: #94a3b8; font-weight: 600;
+               text-anchor: middle; letter-spacing: .04em; text-transform: uppercase; }
+.center-line { stroke: #e2e8f0; stroke-width: 1.5; stroke-dasharray: 6 4; }
+.quadrant-line { stroke: #e2e8f0; stroke-width: 1; }
+
+/* condition dot */
+.cond-dot { r: 4; }
+
+/* ─── Right panel ─── */
+.right-panel { display: flex; flex-direction: column; gap: 14px; }
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.card h3 { font-size: .8rem; font-weight: 700; color: var(--muted);
+           text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+
+/* ─── Audio controls ─── */
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+select {
+  flex: 1; min-width: 110px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: .8rem;
+  background: #fff;
+  color: var(--text);
+}
+select:focus { outline: 2px solid var(--blue); }
+
+#btn-record {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  border: none; border-radius: 7px;
+  background: var(--blue); color: #fff;
+  font-size: .85rem; font-weight: 600;
+  cursor: pointer; transition: background .15s, transform .1s;
+  white-space: nowrap;
+}
+#btn-record:hover  { background: #1d4ed8; }
+#btn-record.active { background: var(--red); }
+#btn-record.active:hover { background: #b91c1c; }
+#btn-record:active { transform: scale(.97); }
+
+.pulse-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%; background: #fff;
+  animation: none;
+}
+.active .pulse-dot { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .5; transform: scale(.8); }
+}
+
+#status-badge {
+  font-size: .72rem; padding: 3px 8px;
+  border-radius: 20px;
+  background: #f1f5f9; color: var(--muted);
+  font-weight: 500;
+}
+#status-badge.listening { background: #dcfce7; color: var(--green); }
+#status-badge.processing { background: #fef9c3; color: var(--amber); }
+#status-badge.error { background: #fee2e2; color: var(--red); }
+
+#transcript-box {
+  min-height: 72px; max-height: 120px; overflow-y: auto;
+  background: #f8fafc; border: 1px solid var(--border);
+  border-radius: 7px; padding: 9px 11px;
+  font-size: .82rem; line-height: 1.55; color: var(--text);
+  word-break: break-word;
+}
+#transcript-box .interim { color: #94a3b8; font-style: italic; }
+#transcript-box:empty::before { content: 'Transcript will appear here…'; color: var(--muted); font-style: italic; }
+
+#btn-process {
+  width: 100%;
+  padding: 9px;
+  border: none; border-radius: 7px;
+  background: var(--green); color: #fff;
+  font-size: .85rem; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+#btn-process:hover { background: #15803d; }
+#btn-process:disabled { background: #86efac; cursor: not-allowed; }
+
+/* ─── Tooth info panel ─── */
+#tooth-info { min-height: 80px; }
+.no-selection { color: var(--muted); font-size: .82rem; font-style: italic; }
+
+.tooth-detail { font-size: .84rem; }
+.tooth-detail .t-id   { font-size: 1.4rem; font-weight: 800; color: var(--blue); }
+.tooth-detail .t-name { font-size: .75rem; color: var(--muted); margin-top: 1px; }
+.tooth-detail .t-cond {
+  display: inline-block; margin-top: 8px;
+  padding: 3px 9px; border-radius: 20px;
+  font-size: .75rem; font-weight: 600;
+  background: var(--blue-light); color: var(--blue);
+}
+.tooth-detail .t-desc { margin-top: 7px; color: #334155; line-height: 1.5; }
+.tooth-detail .t-sev  { margin-top: 5px; font-size: .75rem; color: var(--muted); }
+
+/* ─── Legend ─── */
+.legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: .72rem; color: var(--muted); }
+.legend-swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.12); }
+
+/* ─── History ─── */
+#history-list { max-height: 160px; overflow-y: auto; }
+.history-entry { border-bottom: 1px solid var(--border); padding: 7px 0; font-size: .78rem; }
+.history-entry:last-child { border-bottom: none; }
+.history-entry .h-summary { color: var(--text); font-weight: 500; margin-bottom: 3px; }
+.history-entry .h-teeth   { color: var(--muted); font-size: .72rem; }
+#history-list:empty::before { content: 'No entries yet.'; color: var(--muted); font-style: italic; font-size: .8rem; }
+
+@media (max-width: 768px) {
+  .layout { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <path d="M6 8c0-3.3 2.7-6 6-6 1.8 0 3.4.8 4.5 2C17.6 2.8 19.2 2 21 2c3.3 0 6 2.7 6 6 0 1-.2 2-.6 2.8C25.8 12.4 25 15 24 18c-.8 2.7-1.5 6-2 8-.2 1-1 1.7-2 1.7s-1.6-.6-1.8-1.5L17 22c-.2-.8-.8-1.4-1.6-1.4s-1.4.6-1.6 1.4l-1.2 4.2c-.2.9-1 1.5-1.9 1.5-.9 0-1.7-.7-1.9-1.7C8.3 24 7.6 20.7 6.8 18c-1-3-1.8-5.6-2.4-7.2C4 9.8 4 9 4 8.4 4.1 8.2 5 8 6 8z" fill="white"/>
+  </svg>
+  <div>
+    <h1>Dental Chart — Audio Assistant</h1>
+    <p>Speak your findings · teeth highlight automatically</p>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ═══ Chart ═══ -->
+  <div class="chart-card">
+    <h2>FDI Tooth Chart — click any tooth or use voice</h2>
+    <svg id="chart-svg" viewBox="0 0 740 380" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <!-- ═══ Right panel ═══ -->
+  <div class="right-panel">
+
+    <!-- Audio -->
+    <div class="card">
+      <h3>Voice Input</h3>
+      <div class="controls" style="margin-bottom:10px">
+        <select id="lang-select" title="Recognition language">
+          <option value="en-US">English</option>
+          <option value="lt-LT">Lietuvių</option>
+          <option value="de-DE">Deutsch</option>
+          <option value="ru-RU">Русский</option>
+          <option value="pl-PL">Polski</option>
+        </select>
+        <span id="status-badge">idle</span>
+      </div>
+      <div class="controls" style="margin-bottom:10px">
+        <button id="btn-record">
+          <span class="pulse-dot"></span>
+          <span id="btn-label">Start Recording</span>
+        </button>
+      </div>
+      <div id="transcript-box"></div>
+      <div style="margin-top:9px">
+        <button id="btn-process" disabled>Analyse with AI</button>
+      </div>
+    </div>
+
+    <!-- Tooth Info -->
+    <div class="card" id="tooth-info-card">
+      <h3>Selected Tooth</h3>
+      <div id="tooth-info">
+        <p class="no-selection">Click a tooth on the chart to view details, or use voice input.</p>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="card">
+      <h3>Legend</h3>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <!-- History -->
+    <div class="card">
+      <h3>Session Log</h3>
+      <div id="history-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════════
+const UPPER = [18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28];
+const LOWER = [48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38];
+
+const TOOTH_NAMES = {
+  1:'Central Incisor', 2:'Lateral Incisor', 3:'Canine',
+  4:'1st Premolar', 5:'2nd Premolar', 6:'1st Molar',
+  7:'2nd Molar', 8:'3rd Molar (Wisdom)'
+};
+
+const CONDITIONS = {
+  healthy:     {label:'Healthy',      color:'#f0fdf4', border:'#16a34a'},
+  cavity:      {label:'Cavity',       color:'#fee2e2', border:'#dc2626'},
+  filling:     {label:'Filling',      color:'#dbeafe', border:'#2563eb'},
+  'crown-cond':{label:'Crown',        color:'#fef9c3', border:'#ca8a04'},
+  extraction:  {label:'Extraction',   color:'#f1f5f9', border:'#475569'},
+  missing:     {label:'Missing',      color:'#e2e8f0', border:'#94a3b8'},
+  root_canal:  {label:'Root Canal',   color:'#fed7aa', border:'#ea580c'},
+  implant:     {label:'Implant',      color:'#d1fae5', border:'#059669'},
+  bridge:      {label:'Bridge',       color:'#f3e8ff', border:'#7c3aed'},
+  crack:       {label:'Crack',        color:'#fce7f3', border:'#be185d'},
+  pain:        {label:'Pain',         color:'#ffe4e6', border:'#e11d48'},
+  sensitivity: {label:'Sensitivity',  color:'#fff7ed', border:'#c2410c'},
+  observation: {label:'Observation',  color:'#f0f9ff', border:'#0284c7'},
+};
+
+// ── tooth type from last digit ──
+function toothType(id) {
+  const n = id % 10;
+  const widths = {1:32,2:30,3:33,4:34,5:34,6:42,7:40,8:35};
+  return widths[n] || 34;
+}
+function toothName(id) { return TOOTH_NAMES[id % 10] || 'Tooth'; }
+
+// ── state ──
+const state = { teeth: {}, selected: null };
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER CHART
+// ═══════════════════════════════════════════════════════════
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('chart-svg');
+
+const TOTAL_W   = 740;
+const CROWN_H   = 68;
+const ROOT_H    = 44;
+const TOOTH_GAP = 3;
+const NUM_TEETH = 16;
+
+// Calculate total width consumed by teeth row
+function calcOffsets(row) {
+  const widths = row.map(id => toothType(id));
+  const total  = widths.reduce((a,b) => a+b, 0) + TOOTH_GAP * (NUM_TEETH - 1);
+  const startX = (TOTAL_W - total) / 2;
+  const offsets = [];
+  let x = startX;
+  widths.forEach(w => { offsets.push({x, w}); x += w + TOOTH_GAP; });
+  return offsets;
+}
+
+function makeTooth(id, cx, w, isUpper) {
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.classList.add('tooth-group');
+  g.dataset.tooth = id;
+  g.setAttribute('role', 'button');
+  g.setAttribute('aria-label', `Tooth ${id}`);
+
+  // root shape (1 block, tapered)
+  const root = document.createElementNS(SVG_NS, 'rect');
+  const rw = Math.round(w * 0.44);
+  const rx = cx + (w - rw) / 2;
+  if (isUpper) {
+    root.setAttribute('x', rx);
+    root.setAttribute('y', 0);
+    root.setAttribute('width', rw);
+    root.setAttribute('height', ROOT_H);
+    root.setAttribute('rx', 5);
+  } else {
+    root.setAttribute('x', rx);
+    root.setAttribute('y', CROWN_H);
+    root.setAttribute('width', rw);
+    root.setAttribute('height', ROOT_H);
+    root.setAttribute('rx', 5);
+  }
+  root.classList.add('root-shape');
+  g.appendChild(root);
+
+  // crown
+  const crown = document.createElementNS(SVG_NS, 'rect');
+  crown.setAttribute('x', cx);
+  crown.setAttribute('y', isUpper ? ROOT_H : 0);
+  crown.setAttribute('width', w);
+  crown.setAttribute('height', CROWN_H);
+  crown.setAttribute('rx', 7);
+  crown.classList.add('crown');
+  g.appendChild(crown);
+
+  // condition dot (shown when condition set)
+  const dot = document.createElementNS(SVG_NS, 'circle');
+  dot.classList.add('cond-dot');
+  dot.setAttribute('cx', cx + w/2);
+  dot.setAttribute('cy', isUpper ? ROOT_H + CROWN_H - 12 : 12);
+  dot.setAttribute('fill', 'transparent');
+  dot.id = `dot-${id}`;
+  g.appendChild(dot);
+
+  // label
+  const lbl = document.createElementNS(SVG_NS, 'text');
+  lbl.classList.add('tooth-label');
+  lbl.setAttribute('x', cx + w/2);
+  lbl.setAttribute('y', isUpper ? ROOT_H + CROWN_H/2 + 4 : CROWN_H/2 + 4);
+  lbl.textContent = id;
+  g.appendChild(lbl);
+
+  g.addEventListener('click', () => selectTooth(String(id)));
+  return g;
+}
+
+function buildChart() {
+  svg.innerHTML = '';
+  const upOff  = calcOffsets(UPPER);
+  const loOff  = calcOffsets(LOWER);
+  const upY    = 18;
+  const loY    = upY + ROOT_H + CROWN_H + 26;
+  const midY   = upY + ROOT_H + CROWN_H + 13;
+
+  // arch labels
+  const mkLabel = (text, x, y) => {
+    const t = document.createElementNS(SVG_NS, 'text');
+    t.classList.add('arch-label');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.textContent = text;
+    svg.appendChild(t);
+  };
+  mkLabel('UPPER', TOTAL_W/2, upY - 4);
+  mkLabel('LOWER', TOTAL_W/2, loY + ROOT_H + CROWN_H + 14);
+
+  // center line
+  const cl = document.createElementNS(SVG_NS, 'line');
+  cl.classList.add('center-line');
+  cl.setAttribute('x1', 20); cl.setAttribute('x2', TOTAL_W - 20);
+  cl.setAttribute('y1', midY); cl.setAttribute('y2', midY);
+  svg.appendChild(cl);
+
+  // quadrant divider
+  const qd = document.createElementNS(SVG_NS, 'line');
+  qd.classList.add('quadrant-line');
+  qd.setAttribute('x1', TOTAL_W/2); qd.setAttribute('x2', TOTAL_W/2);
+  qd.setAttribute('y1', upY); qd.setAttribute('y2', loY + ROOT_H + CROWN_H);
+  svg.appendChild(qd);
+
+  // upper teeth
+  const upG = document.createElementNS(SVG_NS, 'g');
+  upG.setAttribute('transform', `translate(0,${upY})`);
+  UPPER.forEach((id, i) => {
+    const {x, w} = upOff[i];
+    upG.appendChild(makeTooth(id, x, w, true));
+  });
+  svg.appendChild(upG);
+
+  // lower teeth
+  const loG = document.createElementNS(SVG_NS, 'g');
+  loG.setAttribute('transform', `translate(0,${loY})`);
+  LOWER.forEach((id, i) => {
+    const {x, w} = loOff[i];
+    loG.appendChild(makeTooth(id, x, w, false));
+  });
+  svg.appendChild(loG);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SELECTION & CONDITIONS
+// ═══════════════════════════════════════════════════════════
+function selectTooth(id) {
+  // deselect previous
+  if (state.selected) {
+    const prev = svg.querySelector(`[data-tooth="${state.selected}"]`);
+    if (prev) prev.classList.remove('selected');
+  }
+  state.selected = id;
+  const el = svg.querySelector(`[data-tooth="${id}"]`);
+  if (el) el.classList.add('selected');
+  renderToothInfo(id);
+}
+
+function applyCondition(id, condition, description, severity) {
+  condition = condition === 'crown' ? 'crown-cond' : condition;
+  state.teeth[id] = {condition, description, severity};
+  const el = svg.querySelector(`[data-tooth="${id}"]`);
+  if (!el) return;
+  // remove all condition classes
+  Object.keys(CONDITIONS).forEach(c => el.classList.remove(c));
+  el.classList.remove('selected');
+  el.classList.add(condition);
+  // colour dot
+  const dot = document.getElementById(`dot-${id}`);
+  if (dot && CONDITIONS[condition]) {
+    dot.setAttribute('fill', CONDITIONS[condition].border);
+    dot.setAttribute('r', 4);
+  }
+}
+
+function renderToothInfo(id) {
+  const box = document.getElementById('tooth-info');
+  const data = state.teeth[id];
+  const name = toothName(Number(id));
+  const quadrant = Math.floor(Number(id)/10);
+  const qNames = {1:'Upper Right',2:'Upper Left',3:'Lower Left',4:'Lower Right'};
+
+  if (!data) {
+    box.innerHTML = `
+      <div class="tooth-detail">
+        <div class="t-id">${id}</div>
+        <div class="t-name">${name} · ${qNames[quadrant] || ''}</div>
+        <div style="margin-top:10px;color:var(--muted);font-size:.8rem">No findings recorded.</div>
+      </div>`;
+    return;
+  }
+  const c = CONDITIONS[data.condition] || {label: data.condition, color:'#f0f9ff', border:'#0284c7'};
+  box.innerHTML = `
+    <div class="tooth-detail">
+      <div class="t-id">${id}</div>
+      <div class="t-name">${name} · ${qNames[quadrant] || ''}</div>
+      <span class="t-cond" style="background:${c.color};color:${c.border}">${c.label}</span>
+      <div class="t-desc">${data.description}</div>
+      <div class="t-sev">Severity: ${data.severity}</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LEGEND
+// ═══════════════════════════════════════════════════════════
+function buildLegend() {
+  const el = document.getElementById('legend');
+  Object.entries(CONDITIONS).forEach(([k, v]) => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<div class="legend-swatch" style="background:${v.color};border-color:${v.border}"></div>${v.label}`;
+    el.appendChild(item);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SPEECH RECOGNITION
+// ═══════════════════════════════════════════════════════════
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let isListening = false;
+let finalText = '';
+let interimText = '';
+
+const btnRecord  = document.getElementById('btn-record');
+const btnLabel   = document.getElementById('btn-label');
+const statusBadge = document.getElementById('status-badge');
+const transcriptBox = document.getElementById('transcript-box');
+const btnProcess = document.getElementById('btn-process');
+
+function setStatus(text, cls) {
+  statusBadge.textContent = text;
+  statusBadge.className = '';
+  if (cls) statusBadge.classList.add(cls);
+}
+
+function updateTranscript() {
+  transcriptBox.innerHTML = '';
+  if (finalText) {
+    const span = document.createElement('span');
+    span.textContent = finalText;
+    transcriptBox.appendChild(span);
+  }
+  if (interimText) {
+    const span = document.createElement('span');
+    span.className = 'interim';
+    span.textContent = ' ' + interimText;
+    transcriptBox.appendChild(span);
+  }
+  btnProcess.disabled = !finalText.trim();
+}
+
+if (SpeechRecognition) {
+  btnRecord.addEventListener('click', () => {
+    if (isListening) stopListening();
+    else startListening();
+  });
+} else {
+  btnRecord.disabled = true;
+  btnLabel.textContent = 'Not supported';
+  setStatus('unsupported', 'error');
+}
+
+function startListening() {
+  const lang = document.getElementById('lang-select').value;
+  recognition = new SpeechRecognition();
+  recognition.continuous      = true;
+  recognition.interimResults  = true;
+  recognition.lang            = lang;
+
+  recognition.onstart = () => {
+    isListening = true;
+    btnRecord.classList.add('active');
+    btnLabel.textContent = 'Stop Recording';
+    setStatus('listening', 'listening');
+  };
+
+  recognition.onresult = (e) => {
+    interimText = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalText += e.results[i][0].transcript + ' ';
+      else interimText += e.results[i][0].transcript;
+    }
+    updateTranscript();
+  };
+
+  recognition.onerror = (e) => {
+    setStatus('error: ' + e.error, 'error');
+    stopListening();
+  };
+
+  recognition.onend = () => {
+    if (isListening) recognition.start(); // keep alive
+  };
+
+  finalText = '';
+  interimText = '';
+  updateTranscript();
+  recognition.start();
+}
+
+function stopListening() {
+  isListening = false;
+  if (recognition) { recognition.onend = null; recognition.stop(); }
+  btnRecord.classList.remove('active');
+  btnLabel.textContent = 'Start Recording';
+  setStatus('idle');
+  interimText = '';
+  updateTranscript();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  AI PROCESSING
+// ═══════════════════════════════════════════════════════════
+btnProcess.addEventListener('click', async () => {
+  const text = finalText.trim();
+  if (!text) return;
+  btnProcess.disabled = true;
+  btnProcess.textContent = 'Analysing…';
+  setStatus('processing', 'processing');
+
+  try {
+    const res = await fetch('/process', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      setStatus('error', 'error');
+      alert('Error: ' + data.error);
+      return;
+    }
+
+    (data.teeth || []).forEach(t => {
+      applyCondition(t.id, t.condition, t.description, t.severity || 'n/a');
+      if (state.selected === t.id) renderToothInfo(t.id);
+    });
+
+    // auto-select first found tooth
+    if (data.teeth && data.teeth.length > 0) {
+      selectTooth(data.teeth[0].id);
+    }
+
+    addHistory(data.summary || '', data.teeth || []);
+    setStatus('done ✓', 'listening');
+    setTimeout(() => setStatus('idle'), 2500);
+
+    // clear transcript for next entry
+    finalText = '';
+    interimText = '';
+    updateTranscript();
+
+  } catch (err) {
+    setStatus('network error', 'error');
+    console.error(err);
+  } finally {
+    btnProcess.disabled = false;
+    btnProcess.textContent = 'Analyse with AI';
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+//  HISTORY
+// ═══════════════════════════════════════════════════════════
+function addHistory(summary, teeth) {
+  const list = document.getElementById('history-list');
+  const div  = document.createElement('div');
+  div.className = 'history-entry';
+  const ids = teeth.map(t => `<strong>${t.id}</strong>`).join(', ');
+  div.innerHTML = `<div class="h-summary">${summary}</div>
+                   <div class="h-teeth">Teeth: ${ids || '—'}</div>`;
+  list.prepend(div);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+buildChart();
+buildLegend();
+</script>
+</body>
+</html>
